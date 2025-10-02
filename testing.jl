@@ -10,23 +10,23 @@ function loglike(data, params)
     return logpdf(testlikelihood, params)
 end
 
-@kwdef mutable struct Walker
-    propose::Function
-    reproduce::Function
+abstract type Walker end
+
+@kwdef mutable struct HumanWalker <: Walker
     current::Array{Float64}
     logL::Float64
     failures::Int
 end
 
-function ask_for_new_point(params, logL)
-    println("Current point  : $params")
-    println("Current loglike: $logL")
+function propose(w::HumanWalker)
+    println("Current point  : $(w.current)")
+    println("Current loglike: $(w.logL))")
     println("Enter your new point:")
     newparams = vec(readdlm(IOBuffer(readline())))
-    return newparams::Array{eltype(params)}
+    return newparams::Array{eltype(w.current)}
 end
 
-function copy_self(w::Walker)
+function reproduce(w::HumanWalker)
     ww = deepcopy(w)
     ww.failures = 0
     return ww
@@ -36,17 +36,16 @@ nsamples = 10
 
 fakedata = 0.0
 samples = Vector{Float64}[]
-human_walker1 = Walker(propose = ask_for_new_point,
+human_walker1 = HumanWalker(
                        current = [-1.0, -1.0],
                        logL = loglike(fakedata, [-1.0, -1.0]),
                        failures = 0,
-                       reproduce = copy_self
                       )
 walkers = [human_walker1]
 @assert POPULATION_MAX >= length(walkers) >= POPULATION_MIN
 while length(samples) < nsamples
     w = rand(walkers)
-    new = w.propose(w.current, w.logL)
+    new = propose(w)
     newlogL = loglike(fakedata, new)
     loga = log(rand())
     logH = newlogL - w.logL
@@ -58,7 +57,7 @@ while length(samples) < nsamples
         w.logL = newlogL
         # spawn a child of this walker
         if length(walkers) < POPULATION_MAX
-            push!(walkers, w.reproduce(w))
+            push!(walkers, reproduce(w))
             println([ww.current for ww in walkers])
         end
         println("All samples so far: $samples")
